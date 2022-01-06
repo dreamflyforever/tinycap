@@ -33,6 +33,7 @@
 #include <signal.h>
 #include <string.h>
 #include <time.h>
+#include <q.h>
 
 #define ID_RIFF 0x46464952
 #define ID_WAVE 0x45564157
@@ -69,34 +70,45 @@ void sigint_handler(int sig) // __unused)
     capturing = 0;
 }
 
+#define queue_size 1024 * 50
+static uint8_t g_queue[queue_size];
+circle_queue_struct queue_entity;
+
 int main(int argc, char **argv)
 {
     FILE *file;
     struct wav_header header;
-    unsigned int card = 0;
+    unsigned int card = 1;
     unsigned int device = 0;
-    unsigned int channels = 2;
-    unsigned int rate = 44100;
+    unsigned int channels = 8;
+    unsigned int rate = 16100;
     unsigned int bits = 16;
     unsigned int frames;
-    unsigned int period_size = 1024;
+    unsigned int period_size = 10240; //40ms
     unsigned int period_count = 4;
     unsigned int cap_time = 0;
     enum pcm_format format;
 
+    circle_queue_init(&queue_entity,
+    		g_queue,
+    		queue_size);
+    /* capture -D 1 -d 0 -c 8 -r 16000 -b 16*/
+    //argc = 10;
+    //argv[1]
+#if 0
     if (argc < 2) {
         fprintf(stderr, "Usage: %s file.wav [-D card] [-d device]"
                 " [-c channels] [-r rate] [-b bits] [-p period_size]"
                 " [-n n_periods] [-T capture time]\n", argv[0]);
         return 1;
     }
-
-    file = fopen(argv[1], "wb");
+#endif
+    file = fopen("6mic_raw.wav", "wb");
     if (!file) {
-        fprintf(stderr, "Unable to create file '%s'\n", argv[1]);
+        fprintf(stderr, "Unable to create 6mic_raw.wav\n");
         return 1;
     }
-
+#if 0
     /* parse command line arguments */
     argv += 2;
     while (*argv) {
@@ -136,7 +148,7 @@ int main(int argc, char **argv)
         if (*argv)
             argv++;
     }
-
+#endif
     header.riff_id = ID_RIFF;
     header.riff_sz = 0;
     header.riff_fmt = ID_WAVE;
@@ -236,6 +248,7 @@ unsigned int capture_sample(FILE *file, unsigned int card, unsigned int device,
     end.tv_nsec = now.tv_nsec;
 
     while (capturing && !pcm_read(pcm, buffer, size)) {
+	circle_queue_in(&queue_entity, buffer, size);    	
         if (fwrite(buffer, 1, size, file) != size) {
             fprintf(stderr,"Error capturing sample\n");
             break;
